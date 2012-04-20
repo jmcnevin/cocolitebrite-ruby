@@ -1,6 +1,8 @@
 GEM
   remote: http://rubygems.org/
   specs:
+    chunky_png (1.2.5)
+    cocaine (0.2.1)
     httparty (0.8.2)
       multi_json
       multi_xml
@@ -11,4 +13,6 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  chunky_png
+  cocaine
   httparty

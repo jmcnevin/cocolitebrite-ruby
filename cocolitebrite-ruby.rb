@@ -1,7 +1,10 @@
 require "rubygems"
 require "bundler/setup"
+require 'cocaine'
 require 'httparty'
 require 'uri'
+require 'tempfile'
+require 'chunky_png'
 
 LEASE_POLL_SECONDS = 15
 ROWS               = 12
@@ -67,11 +70,11 @@ module CocoLiteBrite
 
     def translate(message)
       message = message.to_s.
-        encode("US-ASCII", :invalid => :replace, :undef => :replace).
-        rstrip[0, COLS].
-        ljust(COLS, ' ').
-        tr("`_","'-").
-        gsub(/[^\w\s\$\-\=\'\,\:\-\.\/]/,'*')
+      encode("US-ASCII", :invalid => :replace, :undef => :replace).
+      rstrip[0, COLS].
+      ljust(COLS, ' ').
+      tr("`_","'-").
+      gsub(/[^\w\s\$\-\=\'\,\:\-\.\/]/,'*')
       message
     end
 
@@ -104,7 +107,41 @@ def hacker_news
   items.join("\n")
 end
 
-writer = CocoLiteBrite::Writer.new
-# writer.clear
-writer.write(ny_times)
+def image(filename)
+  tempfile = Tempfile.new(['convert','.png'])
+  line = Cocaine::CommandLine.new("convert",
+                                  ":input -resize \"#{COLS}x\" -monochrome :output",
+                                  :output => tempfile.path,
+                                  :input => filename)
+  puts line.command
+  output = line.run
+
+  image = ChunkyPNG::Image.from_file(tempfile.path)
+
+  message = ''
+
+  0.upto(image.height-1) do |row|
+    0.upto(image.width-1) do |col|
+      val = image[col,row]
+      puts val
+      message += case val
+      when 255
+        ' '
+      else
+        '*'
+      end
+    end
+    message += "\n"
+  end
+
+  message
+ensure
+  tempfile.close
+  tempfile.unlink
+end
+
+#writer = CocoLiteBrite::Writer.new
+#writer.clear
+# puts image('troll.png')
+# writer.write(image('icon.png'))
 # writer.write(hacker_news)
