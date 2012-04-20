@@ -4,12 +4,11 @@ require 'httparty'
 require 'uri'
 
 LEASE_POLL_SECONDS = 15
-
-ROWS = 12
-COLS = 80
-THROTTLE_SECS = 0.5
-BASE_URL = 'http://10.1.3.251/litebrite/peggy'
-APP_NAME = 'cocolitebrite-ruby 0.1'
+ROWS               = 12
+COLS               = 80
+THROTTLE_SECS      = 0.2
+BASE_URL           = 'http://10.1.3.251/litebrite/peggy'
+APP_NAME           = 'cocolitebrite-ruby 0.1'
 
 module CocoLiteBrite
   class Lease
@@ -37,6 +36,7 @@ module CocoLiteBrite
     end
 
     def get
+      sleep THROTTLE_SECS
       response = HTTParty.get(@url, :headers => {
         'User-Agent' => APP_NAME,
       })
@@ -71,7 +71,7 @@ module CocoLiteBrite
         rstrip[0, COLS].
         ljust(COLS, ' ').
         tr("`_","'-").
-        gsub(/[^\w\s\$\-\=\'\,\:\-\.]/,'*')
+        gsub(/[^\w\s\$\-\=\'\,\:\-\.\/]/,'*')
       message
     end
 
@@ -86,10 +86,11 @@ end
 def ny_times
   items = ["NY TIMES FRONT PAGE - #{Time.now}", ("=" * COLS)]
   news = CocoLiteBrite::Request.new("http://pipes.yahoo.com/pipes/pipe.run?_id=Llu8dRh23BGG6N4ZxQnzeQ&_render=json").get
-  available_rows = ((ROWS - 1) - items.size)
+  available_rows = ((ROWS - 2) - items.size)
   news["value"]["items"][0, available_rows].each do |i|
     items << i["title"]
   end
+  items << "*** Go nuts: github.com-jmcnevin-cocolitebrite-ruby ***"
   items.join("\n")
 end
 
