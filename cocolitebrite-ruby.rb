@@ -5,6 +5,8 @@ require 'httparty'
 require 'uri'
 require 'tempfile'
 require 'chunky_png'
+require 'wordnik'
+require 'artii'
 
 LEASE_POLL_SECONDS = 15
 ROWS               = 12
@@ -35,7 +37,7 @@ module CocoLiteBrite
     attr_reader :url
     def initialize(url)
       @url = url
-      puts @url
+      puts @url if ENV['DEBUG']
     end
 
     def get
@@ -43,7 +45,7 @@ module CocoLiteBrite
       response = HTTParty.get(@url, :headers => {
         'User-Agent' => APP_NAME,
       })
-      puts response.inspect
+      puts response.inspect if ENV['DEBUG']
       response = response.parsed_response
       if response['result'] == 'failure'
         raise FailureResponse
@@ -61,11 +63,20 @@ module CocoLiteBrite
     end
 
     def write(row=0, col=0, message)
+      message = wrap_lines(message)
       message.each_line do |x|
         x = URI::escape(translate(x))
         Request.new("#{BASE_URL}/write/#{@lease.code}/#{row}/#{col}/#{x}").get
         row += 1
       end
+    end
+
+    def wrap_lines(message, col = COLS)
+      new_message = []
+      message.each_line do |x|
+        new_message << x.gsub(/(.{1,#{col}})( +|$\n?)|(.{1,#{col}})/, "\\1\\3\n")
+      end
+      new_message.join('')
     end
 
     def translate(message)
@@ -74,7 +85,7 @@ module CocoLiteBrite
       rstrip[0, COLS].
       ljust(COLS, ' ').
       tr("`_","'-").
-      gsub(/[^\w\s\$\-\=\'\,\:\-\.\/]/,'*')
+      gsub(/[^\w\s\@\!\(\)\$\-\=\'\,\:\-\.\/]/,'*')
       message
     end
 
@@ -107,13 +118,34 @@ def hacker_news
   items.join("\n")
 end
 
+def word_of_the_day
+  Wordnik.configure do |config|
+    config.api_key = 'GET YOUR OWN'
+  end
+  resp = Wordnik.words.get_word_of_the_day
+  message = ["WORD OF THE DAY"]
+  message << '=' * message.first.length
+  message << resp["word"]
+  resp["definitions"].each do |d|
+    message << d["text"]
+  end
+  message.join("\n")
+end
+
+def clock(font = 'doh')
+  Artii::Base.new(Time.now.strftime("%l:%M"), '-f', font).output
+end
+
+def text(text, font)
+  Artii::Base.new(text, '-f', font).output
+end
+
 def image(filename)
   tempfile = Tempfile.new(['convert','.png'])
   line = Cocaine::CommandLine.new("convert",
-                                  ":input -resize \"#{COLS}x\" -monochrome :output",
+                                  ":input -resize \"#{COLS}x#{ROWS}\" -monochrome :output",
                                   :output => tempfile.path,
                                   :input => filename)
-  puts line.command
   output = line.run
 
   image = ChunkyPNG::Image.from_file(tempfile.path)
@@ -123,7 +155,6 @@ def image(filename)
   0.upto(image.height-1) do |row|
     0.upto(image.width-1) do |col|
       val = image[col,row]
-      puts val
       message += case val
       when 255
         ' '
@@ -140,8 +171,15 @@ ensure
   tempfile.unlink
 end
 
-#writer = CocoLiteBrite::Writer.new
-#writer.clear
-# puts image('troll.png')
-# writer.write(image('icon.png'))
-# writer.write(hacker_news)
+def display(message)
+  if ENV['FINAL']
+    writer = CocoLiteBrite::Writer.new
+    writer.clear
+    writer.write(message)
+  else
+    puts message
+  end
+end
+
+# display clock('univers')
+display text(":-)", 'banner3')
